@@ -1,0 +1,1 @@
+"""Test package for Face Aesthetic AI backend."""

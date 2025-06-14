@@ -1,0 +1,85 @@
+# Development override for Docker Compose
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# 2025 Best Practices - No version needed
+
+services:
+  # PostgreSQL Database (development mode)
+  postgres:
+    profiles: []  # Enable postgres in development
+
+  # Backend API (development mode)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      # App settings
+      APP_NAME: "Face Aesthetic AI Backend (Dev)"
+      DEBUG: "true"
+      LOG_LEVEL: "DEBUG"
+      
+      # Database (local postgres for development)
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/face_aesthetic_dev
+      
+      # Development settings
+      RELOAD: "true"
+      WORKERS: "1"
+      
+      # Hot reload settings
+      PYTHONPATH: "/app"
+      
+    volumes:
+      - ./backend/app:/app/app  # Mount source code for hot reload (remove :ro)
+      - ./backend/tests:/app/tests
+      - backend_dev_uploads:/app/uploads
+      - backend_dev_reports:/app/reports
+    command: [
+      "uv", "run", "uvicorn", 
+      "app.main:app", 
+      "--host", "0.0.0.0", 
+      "--port", "8000", 
+      "--reload",
+      "--reload-dir", "/app/app",
+      "--log-level", "debug"
+    ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Frontend (development mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_KEY}
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    volumes:
+      - ./frontend/src:/app/src  # Mount source code for hot reload
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/next.config.js:/app/next.config.js
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - /app/node_modules  # Anonymous volume for node_modules
+      - /app/.next         # Anonymous volume for .next build cache
+    command: ["npm", "run", "dev"]
+
+  # Nginx (disabled in development)
+  nginx:
+    profiles:
+      - production  # Only run in production profile
+
+volumes:
+  backend_dev_uploads:
+    driver: local
+  backend_dev_reports:
+    driver: local
